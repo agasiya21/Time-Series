@@ -1,0 +1,132 @@
+---
+title: "Time Series Analysis"
+author: "Agasiya"
+date: "12/2/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, comment = NA, message = FALSE, warning = FALSE)
+library(tseries)
+library(forecast)
+library(tidyverse)
+joe <- read.csv(file =  "C:\\Time Series\\Time series in R 2.csv")
+```
+
+```{r  converting the dataset to a time series data}
+joe_ts <- ts(joe$Fatalities,start = c(2017,1), frequency = 12)
+class(joe_ts)
+autoplot(joe_ts)
+```
+
+```{r}
+joe %>% 
+  group_by(Year) %>% 
+  summarise(
+    mean = mean(Fatalities))
+```
+
+```{r}
+ggtsdisplay(joe_ts) # for autoplot, acf, pacf
+```
+
+```{r  Differencing to reach stationary}
+joe_ts_diff1 <- diff(joe_ts)
+ggtsdisplay(joe_ts_diff1)
+adf.test(joe_ts_diff1, alternative = "stationary")
+```
+
+
+#============================================================================
+      ## Fitting models to compare AIC for best choice of model  ##
+#============================================================================
+
+```{r}
+fit1 <- Arima(joe_ts_diff1, order = c(0,1,0), seasonal = c(1,1,0), lambda = NULL, include.constant = TRUE)
+summary(fit1)
+autoplot(fit1)
+checkresiduals(fit1)
+ggtsdisplay(fit1$residuals)
+```
+
+```{r}
+fit2 <- Arima(joe_ts_diff1, order = c(0,1,0), seasonal = c(0,1,1), lambda = NULL, include.constant = TRUE)
+autoplot(fit2)
+checkresiduals(fit2)
+ggtsdisplay(fit2$residuals)
+summary(fit1)
+```
+
+```{r}
+fit3 <- Arima(joe_ts_diff1, order = c(0,1,1), seasonal = c(0,1,1), lambda = NULL, include.constant = TRUE)
+autoplot(fit3)
+checkresiduals(fit3)
+ggtsdisplay(fit3$residuals)
+summary(fit3)
+```
+
+```{r}
+autoplot(joe_ts_diff1)+ 
+  autolayer(fit3$fitted, series = "Arima(011)(011)12")
+
+autoplot(joe_ts_diff1)+ 
+  autolayer(fit2$fitted, series = "Arima(010)(011)12")
+
+autoplot(joe_ts_diff1)+ 
+  autolayer(fit1$fitted, series = "Arima(010)(110)12")
+
+autoplot(joe_ts_diff1)+ 
+  autolayer(fit1$fitted, series = "Fit")
+
+autoplot(joe_ts_diff1)+ 
+  autolayer(fit3$fitted, series = "Fit")
+
+auto.arima(joe_ts_diff1, trace = TRUE)
+```
+
+```{r}
+fit4 <- Arima(joe_ts_diff1, order = c(0,1,2),
+              seasonal = c(0,1,1),
+              lambda = NULL,
+              include.constant = TRUE)
+autoplot(fit4)
+checkresiduals(fit4)
+ggtsdisplay(fit4$residuals)
+summary(fit4)
+checkresiduals(fit4)
+```  
+
+```{r}
+autoplot(joe_ts_diff1)+ 
+  autolayer(fit4$fitted, series = "Arima(0,1,2)(1,1,0)")
+adf.test(joe_ts_diff1, alternative = "stationary")
+```
+
+#################################
+     #R suggested - auto.arima
+#################################
+```{r}
+auto_arima <- auto.arima(joe_ts_diff1)
+summary(auto_arima)
+autoplot(auto_arima)
+```
+
+
+```{r}
+pred.fit = predict(fit4, n.ahead=24)
+pred.fit
+ts.plot(pred.fit$pred, col=2, main="The predicted Time series plot")  #NB col is color
+ts.plot(joe_ts_diff1, pred.fit$pred, col=c(1,2))  # we plotted the original data and the predicted graph on the same sheet
+tl=pred.fit$pred -1.95*pred.fit$se  #this talks about the confidence interval  tl is for the lower limit. the 1.96 is the critical value
+tu=pred.fit$pred +1.95*pred.fit$se   #this talks about the confidence interval tu is for the upper limit. the 1.96 is the critical value
+ts.plot(joe_ts_diff1, pred.fit$pred, tl, tu,lty=c(1,2,3,3),col=c(1,2,4,5))   #lty is for an identified graph.The same interval is been used by the tl and tu
+```
+
+#===================================================================================
+                        ##  validating  the model  ##
+#===================================================================================
+```{r}
+Box.test(fit4$residuals, lag=1, type="Ljung-Box")
+Box.test(fit4$residuals, lag=5, type="Ljung-Box")
+Box.test(fit4$residuals, lag=10, type="Ljung-Box")
+```
